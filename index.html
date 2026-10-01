@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monte Carlo — Estimador de Área</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#eef2ff}
+main{max-width:1100px;margin:auto;padding:32px 20px}h1{margin:0 0 8px;font-size:clamp(28px,5vw,46px)}p{color:#aab4d0}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:20px;margin-top:24px}.card{background:#121a30;border:1px solid #273354;border-radius:18px;padding:20px;box-shadow:0 12px 35px #0003}
+label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}input,select,button{width:100%;padding:12px;border-radius:10px;border:1px solid #344263;background:#0d1427;color:#fff;font:inherit}
+button{margin-top:16px;background:#4f7cff;border:0;font-weight:800;cursor:pointer}button:hover{filter:brightness(1.1)}
+canvas{width:100%;height:auto;display:block;background:#f7f9ff;border-radius:12px;cursor:crosshair}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.stat{background:#0d1427;border-radius:12px;padding:14px}.stat b{display:block;font-size:21px;margin-top:4px}.hint{font-size:12px;color:#8995b4}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+</style></head>
+<body><main>
+<h1>Estimador de Área por Monte Carlo</h1>
+<p>Defina uma região e estime sua área usando amostragem aleatória. Para o modo polígono, clique no canvas para criar os vértices.</p>
+<div class="grid"><section class="card">
+<label for="shape">Região</label><select id="shape"><option value="rect">Retângulo</option><option value="circle">Círculo</option><option value="poly">Polígono desenhado</option></select>
+<div id="params"></div>
+<label for="n">Número de amostras</label><input id="n" type="number" min="100" max="2000000" step="1000" value="100000">
+<button id="run">Estimar área</button><button id="clear" style="background:#263351">Limpar polígono</button>
+<p class="hint">Quanto maior o número de amostras, menor tende a ser o erro estatístico, ao custo de mais processamento.</p>
+</section>
+<section class="card"><canvas id="plot" width="760" height="500"></canvas>
+<div class="stats"><div class="stat">Área estimada<b id="area">—</b></div><div class="stat">Pontos dentro<b id="inside">—</b></div><div class="stat">Erro relativo<b id="error">—</b></div></div></section></div>
+</main>
+<script>
+const canvas=document.getElementById('plot'),ctx=canvas.getContext('2d'),shape=document.getElementById('shape'),params=document.getElementById('params');
+let poly=[];
+function draw(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#d6def2';ctx.lineWidth=1;for(let x=0;x<760;x+=38){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,500);ctx.stroke()}for(let y=0;y<500;y+=38){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(760,y);ctx.stroke()}if(poly.length){ctx.beginPath();poly.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.strokeStyle='#4f7cff';ctx.lineWidth=3;ctx.stroke();poly.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,5,0,7);ctx.fillStyle='#4f7cff';ctx.fill()});}}
+function fields(){params.innerHTML=shape.value==='rect'?'<label>Largura</label><input id="w" type="number" value="10" min="0.001"><label>Altura</label><input id="h" type="number" value="6" min="0.001">':shape.value==='circle'?'<label>Raio</label><input id="r" type="number" value="5" min="0.001">':'<p class="hint">Clique no gráfico para adicionar pelo menos 3 vértices.</p>';draw()}fields();shape.onchange=fields;
+canvas.onclick=e=>{if(shape.value!=='poly')return;const r=canvas.getBoundingClientRect();poly.push({x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height});draw()};
+document.getElementById('clear').onclick=()=>{poly=[];draw();};
+function pointInPoly(x,y){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a.y>y)!==(b.y>y)&&x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x)c=!c}return c}
+function run(){const N=Math.max(100,Math.min(2000000,+document.getElementById('n').value||100000));let box,inside=0,trueArea=null;
+if(shape.value==='rect'){const w=+document.getElementById('w').value,h=+document.getElementById('h').value;box={x:0,y:0,w,h};trueArea=w*h}
+else if(shape.value==='circle'){const r=+document.getElementById('r').value;box={x:-r,y:-r,w:2*r,h:2*r};trueArea=Math.PI*r*r}
+else{if(poly.length<3){alert('Adicione pelo menos 3 vértices.');return}let xs=poly.map(p=>p.x),ys=poly.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);box={x:minX,y:minY,w:maxX-minX,h:maxY-minY};}
+ctx.save();draw();ctx.fillStyle='rgba(79,124,255,.28)';
+for(let i=0;i<N;i++){const x=box.x+Math.random()*box.w,y=box.y+Math.random()*box.h;let hit;if(shape.value==='rect')hit=true;else if(shape.value==='circle'){const r=+document.getElementById('r').value;hit=(x*x+y*y<=r*r)}else hit=pointInPoly(x,y);if(hit)inside++;if(i<12000){let px=x,py=y;if(shape.value==='rect'){px=x/box.w*700+30;py=y/box.h*440+30}else if(shape.value==='circle'){const r=+document.getElementById('r').value;px=(x+r)/(2*r)*700+30;py=(y+r)/(2*r)*440+30}else{px=x;py=y}ctx.fillRect(px,py,1.4,1.4)}}
+const estimate=(inside/N)*box.w*box.h;let err='—';if(trueArea)err=(Math.abs(estimate-trueArea)/trueArea*100).toFixed(3)+'%';document.getElementById('area').textContent=estimate.toFixed(6);document.getElementById('inside').textContent=inside.toLocaleString('pt-BR')+' / '+N.toLocaleString('pt-BR');document.getElementById('error').textContent=err;ctx.restore();draw();}
+document.getElementById('run').onclick=run;draw();
+</script></body></html>
